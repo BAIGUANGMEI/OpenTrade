@@ -1,0 +1,16 @@
+.DS_Store
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/data/
+node_modules/
+frontend/dist/
