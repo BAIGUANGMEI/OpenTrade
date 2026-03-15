@@ -1,43 +1,23 @@
 # OpenTrade
 
-OpenTrade is an AI crypto trading dashboard built with `Vue 3` and `FastAPI`.
-It compares multiple AI models on the same market data, records structured decisions,
-simulates spot execution, and visualizes portfolio performance in a single workspace.
+[English](./README.md) | [中文](./docs/README.md)
 
-## What It Does
+OpenTrade is an internal AI crypto research and paper trading platform built with `Vue 3` and `FastAPI`. It allows multiple AI models to run on the same market data, produce structured decisions on a schedule, simulate execution, and compare portfolio performance in a unified dashboard.
 
-- Streams Binance market data for `BTCUSDT`, `ETHUSDT`, and `SOLUSDT`
-- Supports multiple AI providers with configurable `API Key`, `Base URL`, `Model`, and `Provider`
-- Runs scheduled decision cycles with strict JSON output validation
-- Simulates spot trading with isolated paper portfolios per model
-- Tracks positions, orders, NAV, and multi-model return curves on the dashboard
-- Stores audit data for decisions, strategy runs, and execution outcomes
+## Dashboard Screenshot
 
-## Current Scope
+![OpenTrade Dashboard](./docs/view.png)
 
-- Spot only
-- Long only
-- Symbols limited to `BTC`, `ETH`, and `SOL`
-- Paper trading execution
-- Multiple positions per model are allowed
-- Configurable application timezone from `.env`
+## Project Positioning
 
-## Tech Stack
-
-- Frontend: `Vue 3`, `Vite`, `Pinia`, `Vue Router`, `ECharts`
-- Backend: `FastAPI`, `SQLAlchemy`, `Pydantic`, `OpenAI SDK`, `httpx`, `websockets`
-- Storage: `SQLite` for the current MVP
-
-## Project Structure
-
-- `frontend/`: dashboard UI and browser-side utilities
-- `backend/`: API, scheduler, market data, AI routing, and paper executor
-- `.env`: local runtime configuration
-- `docker-compose.yml`: local container orchestration
+- Designed for internal research and strategy validation
+- Currently focused on `BTC`, `ETH`, and `SOL` spot pairs
+- Current execution mode is paper trading
+- The architecture leaves room for future live trading integration
 
 ## Core Features
 
-### 1. Model Configuration
+### 1. Multi-Model Configuration
 
 Each AI model can be configured independently with:
 
@@ -48,42 +28,72 @@ Each AI model can be configured independently with:
 - `temperature`
 - `max_tokens`
 - `timeout_seconds`
-- strategy participation toggle
+- whether it participates in automated strategy runs
 
-Secrets are encrypted before being stored in the backend database, and the UI only shows masked keys.
+Secrets are encrypted before being stored in the backend database, and the UI only displays masked values.
 
-### 2. Market Data
+### 2. Realtime Market Data and Indicators
 
-- Binance WebSocket is used for realtime ticker updates
+- Binance WebSocket is used for realtime price updates
 - Binance REST is used for historical K-line retrieval
-- Dashboard prices update live
-- Technical indicators are computed from historical K-line data
+- Technical indicators are calculated as part of model input
+- The dashboard shows the latest prices for `BTC`, `ETH`, and `SOL`
 
-### 3. Decision Engine
+### 3. Scheduled AI Decisions
 
 On each strategy cycle, every enabled model receives:
 
 - current market snapshot
 - historical K-lines
-- derived indicators
-- recent decisions
+- technical indicators
+- recent decision history
 - current positions
-- portfolio state
+- portfolio capital and NAV state
 
-The model must return strict JSON. Invalid, empty, or failed responses fall back to `HOLD`.
+The model must return strict JSON. If the response is empty, malformed, or the provider call fails, the system falls back to `HOLD`.
 
-### 4. Paper Trading
+### 4. Paper Trading Execution
 
-Each model has an isolated paper account with:
+Each model has its own isolated paper account. The system records:
 
 - cash balance
 - positions
 - average entry price
 - realized and unrealized PnL
 - order history
-- NAV series
+- NAV history
 
-Execution includes simulated fees and slippage.
+Multiple positions per model are supported, and execution includes simulated fees and slippage.
+
+### 5. Visual Dashboard
+
+The current dashboard includes:
+
+- realtime prices for the tracked assets
+- return curves for different models
+- current portfolio overview
+- open positions
+- recent orders
+- recent AI decision logs
+
+The return curve is currently calculated with:
+
+```text
+(NAV - initial_capital) / initial_capital
+```
+
+## Tech Stack
+
+- Frontend: `Vue 3`, `Vite`, `Pinia`, `Vue Router`, `ECharts`
+- Backend: `FastAPI`, `SQLAlchemy`, `Pydantic`, `OpenAI SDK`, `httpx`, `websockets`
+- Storage: `SQLite`
+
+## Project Structure
+
+- `frontend/`: frontend pages, components, state, and charts
+- `backend/`: API, scheduler, market data, AI routing, and paper execution
+- `docs/`: project documentation and screenshots
+- `.env`: local runtime configuration
 
 ## Local Development
 
@@ -116,16 +126,22 @@ npm install
 npm run dev
 ```
 
+Default local addresses:
+
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:8000`
+
 ## Environment
 
 Copy `.env.example` to `.env` and update the values before running the project.
 
-Important settings:
+Example settings:
 
 ```env
 APP_NAME=OpenTrade
 APP_TIMEZONE=Asia/Shanghai
 DATABASE_URL=sqlite:///./data/opentrade.db
+INITIAL_CASH_USDT=10000
 DECISION_INTERVAL_SECONDS=300
 BINANCE_WS_URL=wss://stream.binance.com:9443/stream
 BINANCE_REST_URL=https://api.binance.com
@@ -133,13 +149,13 @@ BINANCE_REST_URL=https://api.binance.com
 
 ## Timezone
 
-Application time is configurable from `.env` via:
+Application time is configurable from `.env`:
 
 ```env
 APP_TIMEZONE=Asia/Shanghai
 ```
 
-Both backend API responses and frontend time formatting use this value.
+Both backend API timestamps and frontend time formatting follow this setting.
 
 ## Database
 
@@ -157,8 +173,9 @@ backend/data/opentrade.db
 - runtime database files under `backend/data/` are ignored
 - no obvious API keys or private key files were found during a workspace scan
 
-## Notes
+## Current Limitations
 
-- This is an MVP and not a production trading system
-- The current executor is paper-only
-- Frontend build currently emits a large bundle warning because of charting dependencies, but it builds successfully
+- Spot paper trading only
+- Only `BTC`, `ETH`, and `SOL` are currently tracked
+- Built primarily for research and visualization, not production-grade automated trading
+- Return curve and strategy evaluation are still being iterated

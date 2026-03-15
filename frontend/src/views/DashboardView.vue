@@ -18,7 +18,7 @@
         <div class="panel-header">
           <div>
             <div class="panel-title">AI Return Curve</div>
-            <div class="panel-subtitle">Temporary return is calculated as `(NAV - capital) / capital` for each model.</div>
+            <div class="panel-subtitle">Each model is redrawn from ordered NAV snapshots plus the latest marked NAV using `(NAV - capital) / capital`.</div>
           </div>
           <span class="tag">{{ navReturnSeries.length }} models</span>
         </div>
@@ -151,29 +151,79 @@ const decisions = ref([]);
 const navSeriesByModel = ref({});
 let refreshTimer = null;
 
+function calculateReturnPct(totalNav, capital) {
+  const nav = Number(totalNav || 0);
+  const initialCapital = Number(capital || 0);
+  if (!initialCapital) {
+    return 0;
+  }
+  return ((nav - initialCapital) / initialCapital) * 100;
+}
+
+function buildReturnSeries(model, rawPoints) {
+  const capital = Number(model.initial_capital || 0);
+  if (!capital) {
+    return null;
+  }
+
+  const orderedPoints = [...(rawPoints || [])]
+    .map((point) => ({
+      created_at: point.created_at,
+      total_nav: Number(point.total_nav || 0),
+      ts: toTimestamp(point.created_at),
+    }))
+    .filter((point) => point.ts && Number.isFinite(point.total_nav))
+    .sort((left, right) => left.ts - right.ts);
+
+  const dedupedPoints = [];
+  for (const point of orderedPoints) {
+    const lastPoint = dedupedPoints[dedupedPoints.length - 1];
+    if (lastPoint && lastPoint.ts === point.ts) {
+      dedupedPoints[dedupedPoints.length - 1] = point;
+    } else {
+      dedupedPoints.push(point);
+    }
+  }
+
+  const currentTimestamp = toTimestamp(portfolio.value.generated_at);
+  const currentNav = Number(model.total_nav || 0);
+  const lastPoint = dedupedPoints[dedupedPoints.length - 1];
+
+  if (
+    currentTimestamp &&
+    Number.isFinite(currentNav) &&
+    (!lastPoint || lastPoint.ts !== currentTimestamp || Math.abs(lastPoint.total_nav - currentNav) > 1e-9)
+  ) {
+    dedupedPoints.push({
+      created_at: portfolio.value.generated_at,
+      total_nav: currentNav,
+      ts: currentTimestamp,
+    });
+  }
+
+  if (!dedupedPoints.length && currentTimestamp && Number.isFinite(currentNav)) {
+    dedupedPoints.push({
+      created_at: portfolio.value.generated_at,
+      total_nav: currentNav,
+      ts: currentTimestamp,
+    });
+  }
+
+  if (!dedupedPoints.length) {
+    return null;
+  }
+
+  return {
+    name: model.model_name,
+    data: dedupedPoints.map((point) => [point.ts, calculateReturnPct(point.total_nav, capital)]),
+  };
+}
+
 const openPositions = computed(() => (portfolio.value.positions || []).length);
-const initialCapitalByModel = computed(() =>
-  Object.fromEntries((portfolio.value.models || []).map((model) => [model.model_config_id, Number(model.initial_capital || 0)]))
-);
+const portfolioModels = computed(() => portfolio.value.models || []);
 const navReturnSeries = computed(() =>
-  modelsStore.items
-    .map((model) => {
-      const points = navSeriesByModel.value[model.id] || [];
-      if (!points.length) {
-        return null;
-      }
-      const capital = initialCapitalByModel.value[model.id];
-      if (!capital) {
-        return null;
-      }
-      return {
-        name: model.name,
-        data: points.map((point) => [
-          toTimestamp(point.created_at),
-          ((Number(point.total_nav || 0) - capital) / capital) * 100,
-        ]),
-      };
-    })
+  portfolioModels.value
+    .map((model) => buildReturnSeries(model, navSeriesByModel.value[model.model_config_id]))
     .filter(Boolean)
 );
 const sortedPositions = computed(() =>
@@ -218,7 +268,7 @@ async function loadDecisions() {
 
 async function loadAllNav() {
   const entries = await Promise.all(
-    modelsStore.items.map(async (model) => [model.id, await api.getNavSeries(model.id)])
+    portfolioModels.value.map(async (model) => [model.model_config_id, await api.getNavSeries(model.model_config_id)])
   );
   navSeriesByModel.value = Object.fromEntries(entries);
 }

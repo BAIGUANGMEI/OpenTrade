@@ -42,7 +42,7 @@ function render() {
     ? props.series.map((item, index) => ({
         type: "line",
         name: item.name,
-        smooth: true,
+        smooth: false,
         showSymbol: false,
         data: item.data,
         lineStyle: { color: colors[index % colors.length], width: 2.5 },
@@ -82,6 +82,7 @@ function render() {
     xAxis: {
       type: useMultiSeries ? "time" : "category",
       data: useMultiSeries ? undefined : props.points.map((point) => new Date(point.created_at).toLocaleTimeString()),
+      boundaryGap: false,
       axisLabel: {
         color: "#64748b",
         formatter: (value) => (useMultiSeries ? formatTime(value) : value),
@@ -101,6 +102,7 @@ function render() {
       backgroundColor: "rgba(255,255,255,0.96)",
       borderColor: "#dbe5f0",
       textStyle: { color: "#0f172a" },
+      valueFormatter: (value) => (props.yAxisFormatter === "percent" ? `${Number(value).toFixed(2)}%` : value),
     },
     legend: useMultiSeries
       ? {
